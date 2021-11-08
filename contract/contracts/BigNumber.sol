@@ -26,7 +26,8 @@ Github: https://github.com/firoorg/solidity-BigNumber/tree/086391ce1ea443bf5463c
 
 */
 
-pragma solidity >=0.4.20 <0.9.0; // Changed by muth@tu-berlin.de to <0.9.0
+//pragma solidity >=0.4.20 <0.9.0; // Changed by muth@tu-berlin.de to <0.9.0
+pragma solidity >=0.4.20 <0.6;
 
 library BigNumber {
     
@@ -564,7 +565,7 @@ library BigNumber {
             // Total size of input = 96+base.length+exp.length+mod.length
             size := add(size,ml)
             // Invoke contract 0x5, put return value right after mod.length, @ +96
-            success := staticcall(sub(gas(), 1350), 0x5, freemem, size, add(96,freemem), ml) // Change by muth@tu-berlin.de gas => gas()
+            success := staticcall(sub(gas, 1350), 0x5, freemem, size, add(96,freemem), ml) // Change by muth@tu-berlin.de gas => gas()
 
             switch success case 0 { invalid() } //fail where we haven't enough gas to make the call
 

@@ -19,6 +19,17 @@ function load_primary_eq_proof() {
     return load_test_file("primary_eq_proof");
 }
 
+function bnBytes(str) {
+    const bn = new BN(str);
+    const bnStr = bn.toString(16);
+    return bnStr.length % 2 === 0 ? "0x" + bnStr : "0x0" + bnStr;
+}
+
+function bnSize(str) {
+    const bn = new BN(str);
+    return bn.bitLength();
+}
+
 function addBNParam(name, strInt, obj) {
     let newObj = obj !== undefined ? {...obj} : new Object();
     
@@ -79,21 +90,41 @@ contract("Verify", () => {
         const proof = load_primary_eq_proof();
         const credentials_proof = load_credential_primary_public_key();
 
+        const unrevealed_attrs = ["height", "age", "sex"];
+
+        const r_keys = Object.keys(credentials_proof.r);
+        const r_values = r_keys.map(e => bnBytes(credentials_proof.r[e]));
+        const r_sizes = r_keys.map(e => bnSize(credentials_proof.r[e]));
+
+        const m_keys = Object.keys(proof.m);
+        const m_values = m_keys.map(e => bnBytes(proof.m[e]));
+        const m_sizes = m_keys.map(e => bnSize(proof.m[e]));
+
         const params = {
             ...addBNParam("p_pub_key_n", credentials_proof["n"]),
+            unrevealed_attrs,
+            r_keys,
+            r_values,
+            r_sizes,
+            m_keys,
+            m_values,
+            m_sizes,
             ...addBNParam("a_prime", proof["a_prime"]),
             ...addBNParam("e", proof["e"])
         };
 
-        console.log(params);
+        //console.log(params);
 
+        let contract;
         return Verify.deployed()
-            .then((contract) => {
-                return contract.calc_teq.call(params);
+            .then((_contract) => {
+                contract = _contract;
+                return contract.calc_teq.call(params, {gas: 299706180000});
             })
             .then((result) => {
                 console.log(result);
             })
+            
 
 
         //console.log(proof);

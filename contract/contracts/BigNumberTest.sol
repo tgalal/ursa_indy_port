@@ -1,4 +1,5 @@
-pragma solidity >=0.8.7 <0.9.0;
+pragma solidity >=0.4.20 <0.6;
+
 
 import "./BigNumber.sol";
 
