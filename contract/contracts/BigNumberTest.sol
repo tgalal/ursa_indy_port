@@ -14,4 +14,4 @@ contract BigNumberTest {
 		return (bn_val.val, bn_val.neg, bn_val.bitlen);
 	}
 	
-}
+}	

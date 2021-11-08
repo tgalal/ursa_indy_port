@@ -3,32 +3,32 @@ const Web3 = require("web3");
 const BN = Web3.utils.BN; 
 
 const BigNumberTest = artifacts.require("BigNumberTest");
+const Verify = artifacts.require("Verify");
 
 function load_test_file(name) {
-    const fileJson = fs.loadFileSync("../data/test/" + name + ".json", "utf8");
-    const obj = JSON.parse(fileJson)
+    const fileJson = fs.readFileSync("../data/tests/" + name + ".json", "utf8");
+    const obj = JSON.parse(fileJson);
     return obj;
-}
-
-function vals_to_int(obj, key = undefined) {
-    const target = key !== undefined ? obj[key] : obj
-    const convert = target.map(v => v && (typeof v === "string" || v instanceof String) ? parseInt(v) : v);
-    return convert;
 }
 
 function load_credential_primary_public_key() {
-    let obj = load_test_file("credential_primary_public_key");
-    obj = vals_to_int(obj);
-    obj = vals_to_int(obj["r"]);
-    return obj
+    return load_test_file("credential_primary_public_key");
 }
 
 function load_primary_eq_proof() {
-    let obj = load_test_file("primary_eq_proof");
-    obj = vals_to_int(obj);
-    obj = vals_to_int(obj["revealed_attrs"]);
-    obj = vals_to_int(obj["m"]);
-    return obj;
+    return load_test_file("primary_eq_proof");
+}
+
+function addBNParam(name, strInt, obj) {
+    let newObj = obj !== undefined ? {...obj} : new Object();
+    
+    const bn = new BN(strInt);
+    const bnStr = bn.toString(16);
+
+    newObj[name] = bnStr.length % 2 === 0 ? "0x" + bnStr : "0x0" + bnStr;
+    newObj[name + "_bits"] = bn.bitLength();
+
+    return newObj;
 }
 
 contract("BigNumber", () => {
@@ -57,14 +57,14 @@ contract("BigNumber", () => {
         
         return BigNumberTest.deployed()
             .then((instance) => {        
+                const bnStr = bn.toString(16);
 
                 return instance.returnBigNumber.call(
-                    "0x" + bn.toString(16),
+                    bnStr.length % 2 === 0 ? "0x" + bnStr : "0x0" + bnStr,
                     bn.bitLength() 
                 );
             })
             .then((result) => {
-                console.log(result);
                 assert.equal(result[0], "0x0" + bnStrHex);
                 assert.equal(result[1], false);
                 assert.equal(result[2].toNumber(), bn.bitLength());
@@ -72,22 +72,68 @@ contract("BigNumber", () => {
     });
 })
 
-// contract("Verify", () => {
-//     it("test_calc_teq", () => {
-//         const expected = new BN("91264240506826174927348047353965425159860757123338479073424113940259806551851229292237119667270337226044891882031507391247335164506822323444174803404823415595209988313925779411601427163169867402731683535732199690625942446654645156277416114003097696459602759772355589838338098112196343083991333232435443953495090160789157756256594127180544038043918022344493848651792154647005487993074823035954414813424278780163108302094976055852493721853967615097172351343103854345595377663442839788671277249341676912758940126819293663537960202673372394563353933943790374230983129060596346889726181201177754774157687114812348019929279");
+contract("Verify", () => {
+    it("test_calc_teq", () => {
+        const expected = new BN("91264240506826174927348047353965425159860757123338479073424113940259806551851229292237119667270337226044891882031507391247335164506822323444174803404823415595209988313925779411601427163169867402731683535732199690625942446654645156277416114003097696459602759772355589838338098112196343083991333232435443953495090160789157756256594127180544038043918022344493848651792154647005487993074823035954414813424278780163108302094976055852493721853967615097172351343103854345595377663442839788671277249341676912758940126819293663537960202673372394563353933943790374230983129060596346889726181201177754774157687114812348019929279");
 
-//         const proof = load_primary_eq_proof();
+        const proof = load_primary_eq_proof();
+        const credentials_proof = load_credential_primary_public_key();
 
-//         const res = calc_teq(
-//             p_pub_key=load_credential_primary_public_key(),
-//             a_prime=proof["a_prime"],
-//             e=proof["e"],
-//             v=proof["v"],
-//             m_tilde=proof["m"],
-//             m2tilde=proof["m2"],
-//             unrevealed_attrs=load_unrevealed_attrs()
-//         );
+        const params = {
+            ...addBNParam("p_pub_key_n", credentials_proof["n"]),
+            ...addBNParam("a_prime", proof["a_prime"]),
+            ...addBNParam("e", proof["e"])
+        };
 
-//         assert.equal(res, expected)
-//     })
-// });
+        console.log(params);
+
+        return Verify.deployed()
+            .then((contract) => {
+                return contract.calc_teq.call(params);
+            })
+            .then((result) => {
+                console.log(result);
+            })
+
+
+        //console.log(proof);
+
+        // const p_pub_key_n = new BN();
+
+        // bytes memory p_pub_key_n,
+        // uint256 p_pub_key_n_bits,
+
+        // bytes memory p_pub_key_s,
+        // bytes memory p_pub_key_rctxt,
+
+        // bytes[] memory r_unrevealed_attrs_values,
+        // string[] memory r_unrevealed_attrs_keys,
+
+        // bytes[] memory m_revealed_attrs_values,
+        // string[] memory m_revealed_attrs_keys,
+
+        // bytes memory a_prime,
+        // uint256 a_prime_bits,
+
+        // bytes memory e,
+        // uint256 e_bits,
+
+        // bytes memory v,
+        // uint256 v_bits,
+
+        // bytes memory mtilde,
+        // uint256 mtilde_bits
+
+        // const res = calc_teq(
+        //     p_pub_key=load_credential_primary_public_key(),
+        //     a_prime=proof["a_prime"],
+        //     e=proof["e"],
+        //     v=proof["v"],
+        //     m_tilde=proof["m"],
+        //     m2tilde=proof["m2"],
+        //     unrevealed_attrs=load_unrevealed_attrs()
+        // );
+
+        // assert.equal(res, expected)
+    })
+});
