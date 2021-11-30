@@ -7,10 +7,9 @@ contract BigNumberTest {
 	using BigNumber for *;
 
 	function returnBigNumber(
-		bytes memory _val,
-		uint256 _bits
+		bytes memory _val
 	) public returns (bytes memory, bool, uint) {
-		BigNumber.instance memory bn_val = BigNumber.instance(_val, false, _bits);
+		BigNumber.instance memory bn_val = BigNumber._new(_val, false, false);
 
 		return (bn_val.val, bn_val.neg, bn_val.bitlen);
 	}
