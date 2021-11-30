@@ -22,24 +22,17 @@ function load_primary_eq_proof() {
 function bnBytes(str) {
     const bn = new BN(str);
     const bnStr = bn.toString(16);
-    return bnStr.length % 2 === 0 ? "0x" + bnStr : "0x0" + bnStr;
-}
 
-function bnSize(str) {
-    const bn = new BN(str);
-    return bn.bitLength();
-}
-
-function addBNParam(name, strInt, obj) {
-    let newObj = obj !== undefined ? {...obj} : new Object();
+    let enc_zeros = "";
+    while((enc_zeros + bnStr).length % 64 != 0)
+        enc_zeros += "0";
     
-    const bn = new BN(strInt);
-    const bnStr = bn.toString(16);
 
-    newObj[name] = bnStr.length % 2 === 0 ? "0x" + bnStr : "0x0" + bnStr;
-    newObj[name + "_bits"] = bn.bitLength();
+    const concat = "0x" + enc_zeros + bnStr;
 
-    return newObj;
+    console.log(concat);
+
+    return concat;
 }
 
 contract("BigNumber", () => {
@@ -94,26 +87,29 @@ contract("Verify", () => {
 
         const r_keys = Object.keys(credentials_proof.r);
         const r_values = r_keys.map(e => bnBytes(credentials_proof.r[e]));
-        const r_sizes = r_keys.map(e => bnSize(credentials_proof.r[e]));
 
         const m_keys = Object.keys(proof.m);
         const m_values = m_keys.map(e => bnBytes(proof.m[e]));
-        const m_sizes = m_keys.map(e => bnSize(proof.m[e]));
 
         const params = {
-            ...addBNParam("p_pub_key_n", credentials_proof["n"]),
+            "p_pub_key_n": bnBytes(credentials_proof["n"]),
+            "p_pub_key_s": bnBytes(credentials_proof["s"]),
+            "p_pub_key_rctxt": bnBytes(credentials_proof["rctxt"]),
             unrevealed_attrs,
-            r_keys,
-            r_values,
-            r_sizes,
-            m_keys,
-            m_values,
-            m_sizes,
-            ...addBNParam("a_prime", proof["a_prime"]),
-            ...addBNParam("e", proof["e"])
+            p_pub_key_r_keys: r_keys,
+            p_pub_key_r_values: r_values,
+            m_tilde_keys: m_keys,
+            m_tilde_values: m_values,
+            
+            "a_prime": bnBytes(proof["a_prime"]),
+            "e": bnBytes(proof["e"]),
+
+
+            "v": bnBytes(proof["v"]),
+            "m2tilde": bnBytes(proof["m2"])
         };
 
-        //console.log(params);
+        console.log(params);
 
         let contract;
         return Verify.deployed()
@@ -121,50 +117,13 @@ contract("Verify", () => {
                 contract = _contract;
                 return contract.calc_teq.call(params, {gas: 299706180000});
             })
-            .then((result) => {
+            .then((_result) => {
+                const result = new BN(_result[0]);
+
                 console.log(result);
+                console.log(expected);
+
+                assert.ok(result.isEqualTo(expected));
             })
-            
-
-
-        //console.log(proof);
-
-        // const p_pub_key_n = new BN();
-
-        // bytes memory p_pub_key_n,
-        // uint256 p_pub_key_n_bits,
-
-        // bytes memory p_pub_key_s,
-        // bytes memory p_pub_key_rctxt,
-
-        // bytes[] memory r_unrevealed_attrs_values,
-        // string[] memory r_unrevealed_attrs_keys,
-
-        // bytes[] memory m_revealed_attrs_values,
-        // string[] memory m_revealed_attrs_keys,
-
-        // bytes memory a_prime,
-        // uint256 a_prime_bits,
-
-        // bytes memory e,
-        // uint256 e_bits,
-
-        // bytes memory v,
-        // uint256 v_bits,
-
-        // bytes memory mtilde,
-        // uint256 mtilde_bits
-
-        // const res = calc_teq(
-        //     p_pub_key=load_credential_primary_public_key(),
-        //     a_prime=proof["a_prime"],
-        //     e=proof["e"],
-        //     v=proof["v"],
-        //     m_tilde=proof["m"],
-        //     m2tilde=proof["m2"],
-        //     unrevealed_attrs=load_unrevealed_attrs()
-        // );
-
-        // assert.equal(res, expected)
     })
 });

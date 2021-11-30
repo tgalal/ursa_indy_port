@@ -534,9 +534,9 @@ library BigNumber {
     function modexp(bytes memory _base, bytes memory _exp, bytes memory _mod) private view returns(bytes memory ret) {
         assembly {
             
-            let bl := mload(_base)
-            let el := mload(_exp)
-            let ml := mload(_mod)
+            let bl := mload(_base) // length of bl    
+            let el := mload(_exp) // length of el    
+            let ml := mload(_mod) // length of ml    
             
             
             let freemem := mload(0x40) // Free memory pointer is always stored at 0x40
@@ -603,6 +603,33 @@ library BigNumber {
       */
     function modmul(instance memory a, instance memory b, instance memory modulus) internal view returns(instance memory res){       
         res = bn_mod(bn_mul(a,b),modulus);       
+    }
+
+    function moduloMultiplication(instance memory a, instance memory b, instance memory mod) internal view returns(instance memory) {
+        instance memory zero = instance(hex"0000000000000000000000000000000000000000000000000000000000000000", false, 0); 
+        instance memory one = instance(hex"0000000000000000000000000000000000000000000000000000000000000001", false, 1); 
+        instance memory two = instance(hex"0000000000000000000000000000000000000000000000000000000000000002", false, 2); 
+
+        instance memory res = instance(hex"0000000000000000000000000000000000000000000000000000000000000000", false, 0);
+
+        instance memory a = instance(a.val, false, 4080);//prepare_modexp(a, one, mod);
+        instance memory b = instance(a.val, false, 4080);//prepare_modexp(b, one, mod);
+
+res = prepare_add(a, b);
+
+       /* while(cmp(b, zero, false) == 1) {
+            if(is_odd(b) == 1) {
+                res = prepare_modexp(prepare_add(res, a), one, mod);
+            }
+
+            a = prepare_modexp(bn_mul(a, two), one, mod);
+            b = right_shift(b, 1);
+
+            return res;
+        }*/
+         
+        
+        return res;
     }
 
 
