@@ -151,6 +151,8 @@ contract("Verify", () => {
         const t_keys = Object.keys(proof.t);
         const t_values = t_keys.map(e => decStrToBnHex(proof.t[e]));
 
+        const is_less = proof["predicate"]["p_type"].toUpperCase() == "LE" || proof["predicate"]["p_type"].toUpperCase() == "LT";
+
         const params = {
             "p_pub_key_n": decStrToBnHex(credentials_proof["n"]),
             "p_pub_key_z": decStrToBnHex(credentials_proof["z"]),
@@ -165,7 +167,7 @@ contract("Verify", () => {
             t_keys,
             t_values,
 
-            is_less: false,
+            is_less, //: false,
 
             "mj": decStrToBnHex(proof["mj"]),
             "alpha": decStrToBnHex(proof["alpha"])
