@@ -25,6 +25,25 @@ contract Verify {
 		bytes m2tilde;
 	}
 
+	struct Calc_tne_param {
+		bytes p_pub_key_n;
+		bytes p_pub_key_z;
+		bytes p_pub_key_s;
+
+		string[] u_keys;
+		bytes[] u_values;
+
+		string[] r_keys;
+		bytes[] r_values;
+
+		string[] t_keys;
+		bytes[] t_values;
+
+		bool is_less;
+
+		bytes mj;
+		bytes alpha;
+	}
 
 	function getParamValue(
 			bytes32 _key, 
@@ -138,4 +157,113 @@ contract Verify {
 
 		return (result.val, result.neg, result.bitlen);
 	}
+
+	function calc_tne_result_tau_i(
+		uint8 _i,
+		Calc_tne_param memory _params,
+		BigNumber.instance memory _p_pub_key_n,
+		BigNumber.instance memory _p_pub_key_z,
+		BigNumber.instance memory _p_pub_key_s
+	) view public returns (BigNumber.instance memory _result_tau_i) {
+		bytes memory i_str = new bytes(1);
+		i_str[0] = bytes1(uint8(48 + _i));
+
+		bytes32 k = keccak256(i_str);
+
+		BigNumber.instance memory cur_u = getParamValue(k, _params.u_keys, _params.u_values);
+		BigNumber.instance memory cur_r = getParamValue(k, _params.r_keys, _params.r_values);
+
+		BigNumber.instance memory pow_z_u_mod_n = _p_pub_key_z.prepare_modexp(cur_u, _p_pub_key_n);
+		BigNumber.instance memory pow_s_r_mod_n = _p_pub_key_s.prepare_modexp(cur_r, _p_pub_key_n);
+
+		_result_tau_i = pow_z_u_mod_n.modmul(pow_s_r_mod_n, _p_pub_key_n);
+	}
+
+	function calc_tne_result_tau_4(
+		BigNumber.instance memory _delta,
+		bytes memory _mj,
+		BigNumber.instance memory _p_pub_key_n,
+		BigNumber.instance memory _p_pub_key_z,
+		BigNumber.instance memory _p_pub_key_s
+	) view public returns (BigNumber.instance memory _result_tau_4) {
+		BigNumber.instance memory mj = BigNumber._new(_mj, false, false);
+
+		BigNumber.instance memory pow_z_mj_mod_n = _p_pub_key_z.prepare_modexp(mj, _p_pub_key_n);
+		BigNumber.instance memory pow_s_delta_mod_n = _p_pub_key_s.prepare_modexp(_delta, _p_pub_key_n);
+
+		_result_tau_4 = pow_z_mj_mod_n.modmul(pow_s_delta_mod_n, _p_pub_key_n);
+	}
+
+	function calc_tne_result_q_i(
+		uint8 _i,
+		BigNumber.instance memory _q,
+		Calc_tne_param memory _params,
+		BigNumber.instance memory _p_pub_key_n
+	) view public returns (BigNumber.instance memory _result_q_i) {
+		bytes memory i_str = new bytes(1);
+		i_str[0] = bytes1(uint8(48 + _i));
+
+		bytes32 k = keccak256(i_str);
+
+		BigNumber.instance memory cur_t = getParamValue(k, _params.t_keys, _params.t_values);
+		BigNumber.instance memory cur_u = getParamValue(k, _params.u_keys, _params.u_values);
+
+		BigNumber.instance memory pow_t_u_mod_n = cur_t.prepare_modexp(cur_u, _p_pub_key_n);
+		_result_q_i = pow_t_u_mod_n.modmul(_q, _p_pub_key_n);
+	}
+
+	function calc_tne(
+		Calc_tne_param memory _params
+	) view public returns (bytes[6] memory _val, bool[6] memory _neg, uint[6] memory _bitlen) {
+		BigNumber.instance[6] memory tau_list;
+
+		BigNumber.instance memory p_pub_key_n = BigNumber._new(_params.p_pub_key_n, false, false);
+		BigNumber.instance memory p_pub_key_z = BigNumber._new(_params.p_pub_key_z, false, false);
+		BigNumber.instance memory p_pub_key_s = BigNumber._new(_params.p_pub_key_s, false, false);
+
+		for(uint8 i = 0; i < 4; i++) {
+			tau_list[i] = calc_tne_result_tau_i(
+				i, 
+				_params,
+				p_pub_key_n,
+				p_pub_key_z,
+				p_pub_key_s
+			);
+		}
+
+		BigNumber.instance memory delta = getParamValue(keccak256(bytes("DELTA")), _params.r_keys, _params.r_values);
+		if(_params.is_less) {
+			BigNumber.instance memory minusOne = BigNumber._new(hex"0000000000000000000000000000000000000000000000000000000000000001", true, false);
+
+			delta = delta.bn_mul(minusOne);
+		}
+
+		tau_list[4] = calc_tne_result_tau_4(
+			delta,
+			_params.mj,
+			p_pub_key_n,
+			p_pub_key_z,
+			p_pub_key_s
+		);
+
+		BigNumber.instance memory q = BigNumber._new(hex"0000000000000000000000000000000000000000000000000000000000000001", false, false);
+		for(uint8 i = 0; i < 4; i++) {
+			q = calc_tne_result_q_i(
+				i,
+				q,
+				_params,
+				p_pub_key_n
+			);
+		}
+
+		BigNumber.instance memory alpha = BigNumber._new(_params.alpha, false, false);
+		BigNumber.instance memory pow_s_alpha_mod_n = p_pub_key_s.prepare_modexp(alpha, p_pub_key_n);
+		tau_list[5] = pow_s_alpha_mod_n.modmul(q, p_pub_key_n);
+
+		for(uint8 i = 0; i < tau_list.length; i++) {
+			_val[i] = tau_list[i].val;
+			_neg[i] = tau_list[i].neg;
+			_bitlen[i] = tau_list[i].bitlen;
+		}
+ 	}
 }
