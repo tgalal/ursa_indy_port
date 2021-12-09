@@ -23,8 +23,7 @@ function load_ne_proof() {
     return load_test_file("ne_proof");
 }
 
-function decStrToBnHex(str) {
-    const bn = new BN(str, 10);
+function bnToBnHex(bn) {
     const bnStr = bn.toString(16);
 
     let enc_zeros = "";
@@ -34,6 +33,11 @@ function decStrToBnHex(str) {
     const concat = "0x" + enc_zeros + bnStr;
 
     return concat;
+}
+
+function decStrToBnHex(str) {
+    const bn = new BN(str, 10);
+    return bnToBnHex(bn);
 }
 
 function hexStrToDecStr(str) {
@@ -90,6 +94,21 @@ contract("BigNumber", () => {
                 assert.equal(hexStrToDecStr(result[0]), bnStr);
                 assert.equal(result[1], false);
             });
+    });
+
+    it("returns 2^596", () => {
+        const bnStr = "259344723055062059907025491480697571938277889515152306249728583105665800713306759149981690559193987143012367913206299323899696942213235956742929677132122730441323862712594345230336";
+        
+        return BigNumberTest.deployed()
+            .then((instance) => {        
+                return instance.returnBigNumber.call(
+                    decStrToBnHex(bnStr)
+                );
+            })
+            .then((result) => {
+                assert.equal(hexStrToDecStr(result[0]), bnStr);
+                assert.equal(result[1], false);
+            }); 
     });
 })
 
@@ -167,13 +186,11 @@ contract("Verify", () => {
             t_keys,
             t_values,
 
-            is_less, //: false,
+            is_less,
 
             "mj": decStrToBnHex(proof["mj"]),
             "alpha": decStrToBnHex(proof["alpha"])
         }
-
-        //console.log(params);
 
         let contract;
         return Verify.deployed()
@@ -195,6 +212,66 @@ contract("Verify", () => {
                 assert.equal(result4, expected4.toString());
                 assert.equal(result5, expected5.toString());
 
+            })
+    });
+
+    it("verify_equality", () => {
+        const proof = load_primary_eq_proof();
+        const credentials_proof = load_credential_primary_public_key();
+
+        const revealed_attrs = Object.keys(proof["revealed_attrs"]);
+        const revealed_attrs_values = revealed_attrs.map(e => decStrToBnHex(proof["revealed_attrs"][e]));
+        const unrevealed_attrs = ["master_secret", "height", "age", "sex"];
+
+        const r_keys = Object.keys(credentials_proof.r);
+        const r_values = r_keys.map(e => decStrToBnHex(credentials_proof.r[e]));
+
+        const m_keys = Object.keys(proof.m);
+        const m_values = m_keys.map(e => decStrToBnHex(proof.m[e]));
+
+        const params = {
+            "p_pub_key_n": decStrToBnHex(credentials_proof["n"]),
+            "p_pub_key_s": decStrToBnHex(credentials_proof["s"]),
+            "p_pub_key_rctxt": decStrToBnHex(credentials_proof["rctxt"]),
+            unrevealed_attrs,
+            p_pub_key_r_keys: r_keys,
+            p_pub_key_r_values: r_values,
+            m_tilde_keys: m_keys,
+            m_tilde_values: m_values,
+            
+            "a_prime": decStrToBnHex(proof["a_prime"]),
+            "e": decStrToBnHex(proof["e"]),
+
+            "v": decStrToBnHex(proof["v"]),
+            "m2tilde": decStrToBnHex(proof["m2"])
+        };
+
+        const two_596 = decStrToBnHex("259344723055062059907025491480697571938277889515152306249728583105665800713306759149981690559193987143012367913206299323899696942213235956742929677132122730441323862712594345230336");
+
+        const aggregated_proof = load_test_file("aggregated_proof");
+
+        const z = decStrToBnHex(credentials_proof["z"]);
+        const z_inverted = bnToBnHex(new BN(credentials_proof["z"], 10).invm(new BN(credentials_proof["n"], 10)));
+
+        let contract;
+        return Verify.deployed()
+            .then((_contract) => {
+                contract = _contract;
+                return contract.verify_equality.call(
+                    params, 
+                    z,
+                    z_inverted,
+                    two_596,
+                    revealed_attrs,
+                    revealed_attrs_values,
+                    decStrToBnHex(aggregated_proof.c_hash),
+                    { gas: 299706180000 });
+            })
+            .then((_result) => {
+                const expected = new BN("10403187904873314760355557832761590691431383521745031865309573910963034393207684410473727200515283477478376473602591257259106279678624852029355519315648291936226793749327383847453659785035143404901389180684693937348170201350989434402765939255768789625180291625978184555673228742169810564578048461551461925810052930346018787363753466820600660809185539201223715614073753236155593704206176748170586820334068878049220243421829954440440126364488974499959662371883050129101801650402485085948889890560553367693634003096560104152231733949195252484402507347769428679283112853202405399796966635008669186194259851326316679551259", 10);
+                const result = hexStrToDecStr(_result[0]);
+
+                assert.equal(result, expected.toString());
             })
     });
 });

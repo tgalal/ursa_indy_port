@@ -45,6 +45,8 @@ contract Verify {
 		bytes alpha;
 	}
 
+	BigNumber.instance public minusOne = BigNumber._new(hex"0000000000000000000000000000000000000000000000000000000000000001", true, false);
+
 	function getParamValue(
 			bytes32 _key, 
 			string[] memory _keys, 
@@ -233,8 +235,6 @@ contract Verify {
 
 		BigNumber.instance memory delta = getParamValue(keccak256(bytes("DELTA")), _params.r_keys, _params.r_values);
 		if(_params.is_less) {
-			BigNumber.instance memory minusOne = BigNumber._new(hex"0000000000000000000000000000000000000000000000000000000000000001", true, false);
-
 			delta = delta.bn_mul(minusOne);
 		}
 
@@ -266,4 +266,91 @@ contract Verify {
 			_bitlen[i] = tau_list[i].bitlen;
 		}
  	}
+
+ 	function verify_equality_result_rar(
+ 		Calc_teq_param memory _teq_params,
+ 		BigNumber.instance memory _two_596,
+ 		BigNumber.instance memory p_pub_key_n,
+ 		string[] memory _revealed_attrs,
+ 		bytes[] memory _revealed_attrs_values
+ 	)
+ 	view public returns (BigNumber.instance memory _verify_equality_result_rar) {
+ 		BigNumber.instance memory a_prime = BigNumber._new(_teq_params.a_prime, false, false);
+
+		_verify_equality_result_rar = a_prime.prepare_modexp(_two_596, p_pub_key_n);
+
+		for(uint256 i = 0; i < _revealed_attrs.length; i++) {
+			bytes32 k = keccak256(bytes(_revealed_attrs[i]));
+
+ 			BigNumber.instance memory cur_r = getParamValue(k, _teq_params.p_pub_key_r_keys, _teq_params.p_pub_key_r_values);
+ 			BigNumber.instance memory encoded_value = BigNumber._new(_revealed_attrs_values[i], false, false);
+
+ 			BigNumber.instance memory rar_pow = cur_r.prepare_modexp(encoded_value, p_pub_key_n);
+ 			_verify_equality_result_rar = rar_pow.modmul(_verify_equality_result_rar, p_pub_key_n);
+ 			
+ 		}
+ 	}
+
+ 	function verify_equality_result_t1 (
+ 		Calc_teq_param memory _teq_params
+ 	)
+ 	view public returns (BigNumber.instance memory _verify_equality_result_t1 ) { 		
+ 		bytes memory teq_val;
+		bool teq_neg;
+		uint256 teq_bitlen;
+
+		(teq_val, teq_neg, teq_bitlen) = calc_teq(_teq_params);
+
+		_verify_equality_result_t1 = BigNumber._new(teq_val, teq_neg, false);
+ 	}
+
+ 	function verify_equality_result_z_inverted_t2 (
+ 		bytes memory _p_pub_key_z,
+ 		bytes memory _p_pub_key_z_inverted,
+ 		BigNumber.instance memory p_pub_key_n,
+ 		BigNumber.instance memory _rar,
+ 		BigNumber.instance memory _c_hash
+ 	) 
+ 	view public returns (BigNumber.instance memory _verify_equality_result_z_inverted_t2) {
+ 		BigNumber.instance memory p_pub_key_z = BigNumber._new(_p_pub_key_z, false, false);
+ 		BigNumber.instance memory p_pub_key_z_inverted = BigNumber._new(_p_pub_key_z_inverted, false, false);
+
+ 		p_pub_key_z.prepare_modexp(p_pub_key_z_inverted, minusOne, p_pub_key_n);
+
+ 		_verify_equality_result_z_inverted_t2 = p_pub_key_z_inverted.bn_mul(_rar);
+ 		_verify_equality_result_z_inverted_t2 = _verify_equality_result_z_inverted_t2.prepare_modexp(_c_hash, p_pub_key_n);
+ 	}
+
+ 	function verify_equality(
+ 		Calc_teq_param memory _teq_params,
+ 		bytes memory _p_pub_key_z,
+ 		bytes memory _p_pub_key_z_inverted,
+ 		bytes memory _two_596,
+ 		string[] memory _revealed_attrs,
+ 		bytes[] memory _revealed_attrs_values,
+ 		bytes memory _c_hash
+ 	) view public returns (bytes memory, bool, uint) {
+ 		BigNumber.instance memory p_pub_key_n = BigNumber._new(_teq_params.p_pub_key_n, false, false);
+ 		BigNumber.instance memory two_596 = BigNumber._new(_two_596, false, false);
+ 		
+ 		BigNumber.instance memory rar = verify_equality_result_rar(
+ 			_teq_params, 
+ 			two_596, 
+ 			p_pub_key_n,
+ 			_revealed_attrs,
+ 			_revealed_attrs_values
+ 		);
+
+ 		BigNumber.instance memory t1 = verify_equality_result_t1(_teq_params);
+
+ 		BigNumber.instance memory c_hash = BigNumber._new(_c_hash, false, false);
+ 	 	BigNumber.instance memory t2 = verify_equality_result_z_inverted_t2(_p_pub_key_z, _p_pub_key_z_inverted, p_pub_key_n, rar, c_hash);
+ 		
+
+ 		BigNumber.instance memory t = t1.modmul(t2, p_pub_key_n);
+
+ 		return (t.val, t.neg, t.bitlen);	
+ 	}
+
+
 }
