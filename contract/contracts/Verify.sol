@@ -45,6 +45,16 @@ contract Verify {
 		bytes alpha;
 	}
 
+	struct Verify_ne_predicate_param {
+		bytes c_hash;
+ 		string[] cur_t_inverse_keys;
+ 		bytes[] cur_t_inverse_values;
+ 		bytes proof_t_delta_inverse;
+ 		bytes predicate_delta_prime_value;
+ 		bytes tau_delta_intermediate_inverse;
+ 		bytes tau_5_intermediate_inverse;
+ 	}
+
 	BigNumber.instance public minusOne = BigNumber._new(hex"0000000000000000000000000000000000000000000000000000000000000001", true, false);
 
 	function getParamValue(
@@ -61,6 +71,14 @@ contract Verify {
 		}
 
 		revert();
+	}
+
+	function getIntStrHash(uint8 _i) pure public returns (bytes32 _hash) {
+		// int to string (48 is ascii "0")
+		bytes memory i_str = new bytes(1);
+		i_str[0] = bytes1(uint8(48 + _i));
+
+		_hash = keccak256(i_str);
 	}
 
 	function calc_teq_result_0(
@@ -167,10 +185,7 @@ contract Verify {
 		BigNumber.instance memory _p_pub_key_z,
 		BigNumber.instance memory _p_pub_key_s
 	) view public returns (BigNumber.instance memory _result_tau_i) {
-		bytes memory i_str = new bytes(1);
-		i_str[0] = bytes1(uint8(48 + _i));
-
-		bytes32 k = keccak256(i_str);
+		bytes32 k = getIntStrHash(_i);
 
 		BigNumber.instance memory cur_u = getParamValue(k, _params.u_keys, _params.u_values);
 		BigNumber.instance memory cur_r = getParamValue(k, _params.r_keys, _params.r_values);
@@ -202,10 +217,7 @@ contract Verify {
 		Calc_tne_param memory _params,
 		BigNumber.instance memory _p_pub_key_n
 	) view public returns (BigNumber.instance memory _result_q_i) {
-		bytes memory i_str = new bytes(1);
-		i_str[0] = bytes1(uint8(48 + _i));
-
-		bytes32 k = keccak256(i_str);
+		bytes32 k = getIntStrHash(_i);
 
 		BigNumber.instance memory cur_t = getParamValue(k, _params.t_keys, _params.t_values);
 		BigNumber.instance memory cur_u = getParamValue(k, _params.u_keys, _params.u_values);
@@ -214,11 +226,9 @@ contract Verify {
 		_result_q_i = pow_t_u_mod_n.modmul(_q, _p_pub_key_n);
 	}
 
-	function calc_tne(
+	function calc_tne_bn(
 		Calc_tne_param memory _params
-	) view public returns (bytes[6] memory _val, bool[6] memory _neg, uint[6] memory _bitlen) {
-		BigNumber.instance[6] memory tau_list;
-
+	) view private returns (BigNumber.instance[6] memory tau_list) {
 		BigNumber.instance memory p_pub_key_n = BigNumber._new(_params.p_pub_key_n, false, false);
 		BigNumber.instance memory p_pub_key_z = BigNumber._new(_params.p_pub_key_z, false, false);
 		BigNumber.instance memory p_pub_key_s = BigNumber._new(_params.p_pub_key_s, false, false);
@@ -259,6 +269,12 @@ contract Verify {
 		BigNumber.instance memory alpha = BigNumber._new(_params.alpha, false, false);
 		BigNumber.instance memory pow_s_alpha_mod_n = p_pub_key_s.prepare_modexp(alpha, p_pub_key_n);
 		tau_list[5] = pow_s_alpha_mod_n.modmul(q, p_pub_key_n);
+ 	}
+
+ 	function calc_tne(
+		Calc_tne_param memory _params
+	) view public returns (bytes[6] memory _val, bool[6] memory _neg, uint[6] memory _bitlen) {
+		BigNumber.instance[6] memory tau_list = calc_tne_bn(_params);
 
 		for(uint8 i = 0; i < tau_list.length; i++) {
 			_val[i] = tau_list[i].val;
@@ -304,27 +320,27 @@ contract Verify {
 		_verify_equality_result_t1 = BigNumber._new(teq_val, teq_neg, false);
  	}
 
- 	function verify_equality_result_z_inverted_t2 (
+ 	function verify_equality_result_z_inverted_t2(
  		bytes memory _p_pub_key_z,
- 		bytes memory _p_pub_key_z_inverted,
+ 		bytes memory _p_pub_key_z_inverse,
  		BigNumber.instance memory p_pub_key_n,
  		BigNumber.instance memory _rar,
  		BigNumber.instance memory _c_hash
  	) 
  	view public returns (BigNumber.instance memory _verify_equality_result_z_inverted_t2) {
  		BigNumber.instance memory p_pub_key_z = BigNumber._new(_p_pub_key_z, false, false);
- 		BigNumber.instance memory p_pub_key_z_inverted = BigNumber._new(_p_pub_key_z_inverted, false, false);
+ 		BigNumber.instance memory p_pub_key_z_inverse = BigNumber._new(_p_pub_key_z_inverse, false, false);
 
- 		p_pub_key_z.prepare_modexp(p_pub_key_z_inverted, minusOne, p_pub_key_n);
+ 		p_pub_key_z.prepare_modexp(p_pub_key_z_inverse, minusOne, p_pub_key_n);
 
- 		_verify_equality_result_z_inverted_t2 = p_pub_key_z_inverted.bn_mul(_rar);
+ 		_verify_equality_result_z_inverted_t2 = p_pub_key_z_inverse.bn_mul(_rar);
  		_verify_equality_result_z_inverted_t2 = _verify_equality_result_z_inverted_t2.prepare_modexp(_c_hash, p_pub_key_n);
  	}
 
  	function verify_equality(
  		Calc_teq_param memory _teq_params,
  		bytes memory _p_pub_key_z,
- 		bytes memory _p_pub_key_z_inverted,
+ 		bytes memory _p_pub_key_z_inverse,
  		bytes memory _two_596,
  		string[] memory _revealed_attrs,
  		bytes[] memory _revealed_attrs_values,
@@ -344,12 +360,119 @@ contract Verify {
  		BigNumber.instance memory t1 = verify_equality_result_t1(_teq_params);
 
  		BigNumber.instance memory c_hash = BigNumber._new(_c_hash, false, false);
- 	 	BigNumber.instance memory t2 = verify_equality_result_z_inverted_t2(_p_pub_key_z, _p_pub_key_z_inverted, p_pub_key_n, rar, c_hash);
+ 	 	BigNumber.instance memory t2 = verify_equality_result_z_inverted_t2(_p_pub_key_z, _p_pub_key_z_inverse, p_pub_key_n, rar, c_hash);
  		
 
  		BigNumber.instance memory t = t1.modmul(t2, p_pub_key_n);
 
  		return (t.val, t.neg, t.bitlen);	
+ 	}
+
+ 	function verify_ne_predicate_result_tau_i(
+ 		uint8 _i,
+ 		Calc_tne_param memory _tne_params,
+ 		BigNumber.instance memory _p_pub_key_n,
+ 		BigNumber.instance memory _c_hash,
+ 		string[] memory _cur_t_inverse_keys,
+ 		bytes[] memory _cur_t_inverse_values,
+ 		BigNumber.instance memory _tau_list_i
+ 	) view public returns (BigNumber.instance memory _result_tau_i) { 
+ 		bytes32 k = getIntStrHash(_i);
+
+ 		BigNumber.instance memory cur_t = getParamValue(k, _tne_params.t_keys, _tne_params.t_values);
+		BigNumber.instance memory cur_t_inverse = getParamValue(k, _cur_t_inverse_keys, _cur_t_inverse_values);	
+
+		cur_t.prepare_modexp(cur_t_inverse, minusOne, _p_pub_key_n);
+
+		BigNumber.instance memory cur_t_inv_c_hash = cur_t_inverse.prepare_modexp(_c_hash, _p_pub_key_n);
+		_result_tau_i = cur_t_inv_c_hash.modmul(_tau_list_i, _p_pub_key_n);
+ 	}
+
+ 	function verify_ne_predicate_result_tau_delta_intermediate(
+ 		Calc_tne_param memory _tne_params,
+		BigNumber.instance memory _p_pub_key_n,
+ 		bytes memory _predicate_delta_prime_value,
+ 		BigNumber.instance memory _delta_prime,
+ 		BigNumber.instance memory _c_hash,
+ 		bytes memory _tau_delta_intermediate_inverse
+ 	) view public returns (BigNumber.instance memory _result_tau_delta_intermediate)  {
+ 		BigNumber.instance memory p_pub_key_z = BigNumber._new(_tne_params.p_pub_key_z, false, false);
+ 		BigNumber.instance memory predicate_delta_prime_value = BigNumber._new(_predicate_delta_prime_value, false, false);
+ 		BigNumber.instance memory tau_delta_intermediate_inverse = BigNumber._new(_tau_delta_intermediate_inverse, false, false);
+
+ 		_result_tau_delta_intermediate = p_pub_key_z.prepare_modexp(predicate_delta_prime_value, _p_pub_key_n);
+ 		_result_tau_delta_intermediate = _result_tau_delta_intermediate.modmul(_delta_prime, _p_pub_key_n);
+ 		_result_tau_delta_intermediate = _result_tau_delta_intermediate.prepare_modexp(_c_hash, _p_pub_key_n);
+
+ 		_result_tau_delta_intermediate.prepare_modexp(tau_delta_intermediate_inverse, minusOne, _p_pub_key_n);
+
+ 		_result_tau_delta_intermediate = tau_delta_intermediate_inverse;
+ 	}
+
+ 	function verify_ne_predicate_bn(
+ 		Calc_tne_param memory _tne_params,
+ 		Verify_ne_predicate_param memory _verify_ne_predicate_params
+ 	) view private returns (BigNumber.instance[6] memory) {
+		BigNumber.instance memory p_pub_key_n = BigNumber._new(_tne_params.p_pub_key_n, false, false);
+		BigNumber.instance memory c_hash = BigNumber._new(_verify_ne_predicate_params.c_hash, false, false);
+
+ 		BigNumber.instance[6] memory tau_list = calc_tne_bn(_tne_params);
+
+		for(uint8 i = 0; i < 4; i++) {
+ 			tau_list[i] = verify_ne_predicate_result_tau_i(
+ 				i,
+ 				_tne_params,
+ 				p_pub_key_n,
+ 				c_hash,
+ 				_verify_ne_predicate_params.cur_t_inverse_keys,
+ 				_verify_ne_predicate_params.cur_t_inverse_values,
+ 				tau_list[i]
+ 			);
+ 		}
+
+ 		BigNumber.instance memory delta = getParamValue(keccak256(bytes("DELTA")), _tne_params.t_keys, _tne_params.t_values);
+ 		BigNumber.instance memory delta_prime = getParamValue(keccak256(bytes("DELTA")), _tne_params.t_keys, _tne_params.t_values);
+		
+		if(_tne_params.is_less) {
+			BigNumber.instance memory proof_t_delta_inverse = BigNumber._new(_verify_ne_predicate_params.proof_t_delta_inverse, false, false);
+			delta_prime.prepare_modexp(proof_t_delta_inverse, minusOne, p_pub_key_n);
+
+			delta_prime = proof_t_delta_inverse;
+		} 
+
+		BigNumber.instance memory tau_delta_intermediate = verify_ne_predicate_result_tau_delta_intermediate(
+			_tne_params,
+			p_pub_key_n,
+			_verify_ne_predicate_params.predicate_delta_prime_value,
+			delta_prime,
+			c_hash,
+			_verify_ne_predicate_params.tau_delta_intermediate_inverse
+		);
+
+
+		tau_list[4] = tau_delta_intermediate.modmul(tau_list[4], p_pub_key_n);
+
+		BigNumber.instance memory tau_5_intermediate = delta.prepare_modexp(c_hash, p_pub_key_n);
+		BigNumber.instance memory tau_5_intermediate_inverse = BigNumber._new(_verify_ne_predicate_params.tau_5_intermediate_inverse, false, false);
+
+		tau_5_intermediate.prepare_modexp(tau_5_intermediate_inverse, minusOne, p_pub_key_n);
+
+		tau_list[5] = tau_5_intermediate_inverse.modmul(tau_list[5], p_pub_key_n);
+
+		return tau_list;
+ 	}
+
+ 	function verify_ne_predicate(
+ 		Calc_tne_param memory _tne_params,
+ 		Verify_ne_predicate_param memory _verify_ne_predicate_params
+ 	) view public returns (bytes[6] memory _val, bool[6] memory _neg, uint[6] memory _bitlen) {
+ 		BigNumber.instance[6] memory tau_list = verify_ne_predicate_bn(_tne_params, _verify_ne_predicate_params);
+
+		for(uint8 i = 0; i < tau_list.length; i++) {
+			_val[i] = tau_list[i].val;
+			_neg[i] = tau_list[i].neg;
+			_bitlen[i] = tau_list[i].bitlen;
+		}
  	}
 
 
