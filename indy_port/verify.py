@@ -207,11 +207,15 @@ def verify(proof:dict,
 
     final_hash = hashlib.sha256()
     for item in tau_list:
+        # We need to serialize the big integer into big-endian bytes.
+        # To use int.to_bytes we need to pass the number of bytes
+        # so we have to compute that first.
         num_bytes = math.ceil(item.bit_length() / 8.0)
         final_hash.update(item.to_bytes(num_bytes, 'big'))
     for item in c_list:
         final_hash.update(bytearray(item))
 
+    # Indy spec specifies that the nonce is 10 bytes-long
     final_hash.update(nonce.to_bytes(10, 'big'))
     final_hash_result = int.from_bytes(final_hash.digest(), 'big')
 
