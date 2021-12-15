@@ -1,12 +1,5 @@
-def create_tau_list_expected_values(
-    r_pub_key, # credential_revocation_public_key
-    rev_reg, # revocation_registry
-    rev_acc_pub_key, # revocation_key_public
-    proof_c # non_revoc_proof.c_list
-    ) -> list:
-
-    t1 = proof_c['e']
-    return []
+import hashlib
+import math
 
 def calc_teq(p_pub_key:dict,
              a_prime:int,
@@ -19,6 +12,7 @@ def calc_teq(p_pub_key:dict,
     result = pow(a_prime, e, p_pub_key['n'])
 
     for k in unrevealed_attrs:
+        k = k.lower()
         cur_r = p_pub_key['r'][k]
         cur_m = m_tilde[k]
         result = (pow(cur_r, cur_m, p_pub_key['n']) * result) % p_pub_key['n']
@@ -185,14 +179,40 @@ def verify_primary_proof(p_pub_key:dict,
 
     return t_hat
 
-def verify(proof:dict, nonce: int):
-    pass
+def verify_non_revocation_proof():
+    return []
 
-def verify_non_revocation_proof(
-    r_pub_key: dict, # credential_revocation_public_key
-    rev_reg: object, # revocation_registry
-    rev_key_pub: dict, # revocation_key_public
-    c_hash: int,
-    proof: dict # proof
-    ):
-    pass
+def verify(proof:dict,
+        nonce: int,
+        p_pub_key:dict,
+        cred_schema: dict,
+        non_cred_schema: dict,
+        sub_proof_request: dict
+        ):
+    c_hash = int(proof['aggregated_proof']['c_hash'])
+    c_list = proof['aggregated_proof']['c_list']
+    tau_list = []
+
+    for proof_item in proof['proofs']:
+        primary_proof = proof_item['primary_proof']
+
+        tau_list.extend(verify_non_revocation_proof())
+        tau_list.extend(verify_primary_proof(p_pub_key = p_pub_key,
+            c_hash=c_hash,
+            primary_proof=primary_proof,
+            cred_schema=cred_schema,
+            non_cred_schema=non_cred_schema,
+            sub_proof_request=sub_proof_request
+        ))
+
+    final_hash = hashlib.sha256()
+    for item in tau_list:
+        num_bytes = math.ceil(item.bit_length() / 8.0)
+        final_hash.update(item.to_bytes(num_bytes, 'big'))
+    for item in c_list:
+        final_hash.update(bytearray(item))
+
+    final_hash.update(nonce.to_bytes(10, 'big'))
+    final_hash_result = int.from_bytes(final_hash.digest(), 'big')
+
+    return final_hash_result == c_hash
