@@ -14,25 +14,38 @@ def vals_to_int(obj:dict, key=None):
         if type(v) is str:
             target[k] = int(v)
 
-def load_credential_primary_public_key() -> dict:
-    obj = load_test_file('credential_primary_public_key')
+def load_credential_primary_public_key(name=None) -> dict:
+    obj = load_test_file(name or 'credential_primary_public_key')
     vals_to_int(obj)
     vals_to_int(obj['r'])
     return obj
 
-def load_primary_eq_proof() -> dict:
-    obj = load_test_file('primary_eq_proof')
+def load_primary_eq_proof(name=None, obj=None) -> dict:
+    obj = obj or load_test_file(name or 'primary_eq_proof')
     vals_to_int(obj)
     vals_to_int(obj['revealed_attrs'])
     vals_to_int(obj['m'])
     return obj
 
-def load_ne_proof() -> dict:
-    obj = load_test_file('ne_proof')
+def load_ne_proof(name=None, obj=None) -> dict:
+    obj = obj or load_test_file(name or 'ne_proof')
     vals_to_int(obj)
     vals_to_int(obj, 'u')
     vals_to_int(obj, 'r')
     vals_to_int(obj, 't')
+    return obj
+
+def load_full_proof(name=None, obj=None) -> dict:
+    obj = obj or load_test_file(name or 'full_proof')
+
+    for proof_item in obj['proof']['proofs']:
+        primary = proof_item['primary_proof']
+        primary['eq_proof'] = load_primary_eq_proof(obj=primary['eq_proof'])
+
+        for i in range(0, len(primary['ge_proofs'])):
+            primary['ge_proofs'][i] = load_ne_proof(
+                obj=primary['ge_proofs'][i]
+            )
     return obj
 
 def load_unrevealed_attrs() -> list:
@@ -106,3 +119,56 @@ def test_verify_ne_predicate():
 
         assert 71576740094469616050175125038612941221466947853166771156257978699698137573095744200811891005812207466193292025189595165749324584760557051762243613675513037542326352529889732378990457572908903168034378406865820691354892874894693473276515751045246421111011260438431516865750528792129415255282372242857723274819466930397323134722222564785435619193280367926994591910298328813248782022939309948184632977090553101391015001992173901794883378542109254048900040301640312902056379924070500971247615062778344704821985243443504796944719578450705940345940533745092900800249667587825786217899894277583562804465078452786585349967293 == res[5]
 
+def test_verify_attr_proof_without_revocation():
+    full_proof = load_full_proof('idunion/proof_attributes_without_revocation')
+    proof = full_proof['proof']
+    requested_proof = full_proof['requested_proof']
+    pk = load_credential_primary_public_key('idunion/credential_primary_public_key')
+    credential_schema = load_test_file('idunion/credential_schema')
+    non_credential_schema = load_test_file('idunion/non_credential_schema')
+
+    assert (verify(proof=proof,
+                  nonce=791242662693629764548388,
+                  p_pub_key=pk,
+                  cred_schema=credential_schema,
+                  non_cred_schema=non_credential_schema,
+                  sub_proof_request={
+                    'revealed_attrs': requested_proof['revealed_attrs'].keys()
+                    }
+                  ))
+
+def test_verify_predicate_proof_without_revocation():
+    full_proof = load_full_proof('idunion/proof_predicates_without_revocation')
+    proof = full_proof['proof']
+    requested_proof = full_proof['requested_proof']
+    pk = load_credential_primary_public_key('idunion/credential_primary_public_key')
+    credential_schema = load_test_file('idunion/credential_schema')
+    non_credential_schema = load_test_file('idunion/non_credential_schema')
+
+    assert (verify(proof=proof,
+                  nonce=1061585408019993119114946,
+                  p_pub_key=pk,
+                  cred_schema=credential_schema,
+                  non_cred_schema=non_credential_schema,
+                  sub_proof_request={
+                    'revealed_attrs': requested_proof['revealed_attrs'].keys()
+                    }
+                  ))
+
+def test_verify_full_proof_without_revocation():
+    full_proof = load_full_proof('idunion/proof_without_revocation')
+    proof = full_proof['proof']
+    requested_proof = full_proof['requested_proof']
+    pk = load_credential_primary_public_key('idunion/credential_primary_public_key')
+    credential_schema = load_test_file('idunion/credential_schema')
+    non_credential_schema = load_test_file('idunion/non_credential_schema')
+
+    assert (verify(proof=proof,
+                  nonce=793316164901637454462802,
+                  p_pub_key=pk,
+                  cred_schema=credential_schema,
+                  non_cred_schema=non_credential_schema,
+                  sub_proof_request={
+                    'revealed_attrs': requested_proof['revealed_attrs'].keys()
+                    }
+                  ))
