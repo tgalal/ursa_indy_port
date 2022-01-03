@@ -414,4 +414,109 @@ contract("Verify", (accounts) => {
                     { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
             })
     })
+
+    it("test_verify_attr_proof_without_revocation", () => {
+        const full_proof = load_test_file("idunion/proof_attributes_without_revocation");
+        const proof = full_proof.proof;
+        const requested_proof = full_proof.requested_proof; // sub_proof_request
+        const pk = load_test_file("idunion/credential_primary_public_key");
+        const credential_schema = load_test_file("idunion/credential_schema");
+        const non_credential_schema = load_test_file("idunion/non_credential_schema");
+
+        const two_596 = decStrToBnHex("259344723055062059907025491480697571938277889515152306249728583105665800713306759149981690559193987143012367913206299323899696942213235956742929677132122730441323862712594345230336");
+
+        const z = decStrToBnHex(pk["z"]);
+        const z_inverted = bnToBnHex(new BN(pk["z"], 10).invm(new BN(pk["n"], 10)));
+
+        const all_attrs = [...credential_schema.attrs, ...non_credential_schema.attrs];
+        const revealed_attrs = Object.keys(requested_proof.revealed_attrs);
+        const revealed_attrs_values = revealed_attrs.map(e => decStrToBnHex(requested_proof["revealed_attrs"][e].encoded));
+        const unrevealed_attrs = all_attrs.filter(e => revealed_attrs.indexOf(e) === -1);
+
+        const r_keys = Object.keys(pk.r);
+        const r_values = r_keys.map(e => decStrToBnHex(pk.r[e]));
+
+        // console.log({all_attrs, revealed_attrs, unrevealed_attrs, revealed_attrs_values})
+
+        const verfiy_params = {
+            nonce: [0xa7, 0x8d, 0x59, 0xc7, 0x00, 0x8f, 0x79, 0xef, 0xb7, 0x24],
+            aggregated_proof_c_hash: decStrToBnHex(proof.aggregated_proof.c_hash),
+
+            aggregated_proof_c_list: proof.aggregated_proof.c_list,
+            primary_proofs: proof.proofs.map((p) => { 
+
+                const m_keys = Object.keys(p.primary_proof.eq_proof.m);
+                const m_values = m_keys.map(e => decStrToBnHex(p.primary_proof.eq_proof.m[e]));
+
+                const a_prime = decStrToBnHex(p.primary_proof.eq_proof.a_prime);
+                const e = decStrToBnHex(p.primary_proof.eq_proof.e);
+                const v = decStrToBnHex(p.primary_proof.eq_proof.v);
+                const m2tilde = decStrToBnHex(p.primary_proof.eq_proof.m2);
+
+                
+                return {
+                    eq_proof: { // Calc_teq_param
+                        p_pub_key_n: decStrToBnHex(pk.n),
+                        p_pub_key_s: decStrToBnHex(pk.s),
+                        p_pub_key_rctxt: decStrToBnHex(pk.rctxt),
+                        unrevealed_attrs: unrevealed_attrs.map(e => e.toLowerCase()),
+                        p_pub_key_r_keys: r_keys,
+                        p_pub_key_r_values: r_values,
+                        m_tilde_keys: m_keys,
+                        m_tilde_values: m_values,
+                        a_prime,
+                        e,
+                        v,
+                        m2tilde
+                    },
+                    p_pub_key_z: z,
+                    p_pub_key_z_inverse: z_inverted,
+                    two_596: two_596,
+                    revealed_attrs: revealed_attrs.map(e => e.toLowerCase()),
+                    revealed_attrs_values: revealed_attrs_values.map(e => e.toLowerCase()),
+                    // tne_params: { // ge_proofs is empty
+                    //     p_pub_key_n: "0x00",
+                    //     p_pub_key_z: "0x00",
+                    //     p_pub_key_s: "0x00",
+                    //     u_keys: [],
+                    //     u_values: [],
+                    //     r_keys: [],
+                    //     r_values: [],
+                    //     t_keys: [],
+                    //     t_values: [],
+                    //     is_less: false,
+                    //     mj: "0x00",
+                    //     alpha: "0x00"
+                    // },
+                    // verify_ne_predicate_params: { // ge_proofs is empty
+                    //     c_hash: "0x00",
+                    //     cur_t_inverse_keys: [],
+                    //     cur_t_inverse_values: [],
+                    //     proof_t_delta_inverse: "0x00",
+                    //     predicate_delta_prime_value: "0x00",
+                    //     tau_delta_intermediate_inverse: "0x00",
+                    //     tau_5_intermediate_inverse: "0x00",
+                    // },
+                }                
+            }),
+        };
+
+        let contract;
+        return Verify.deployed()
+            .then((_contract) => {
+                contract = _contract;
+                return contract.verify(
+                    verfiy_params, 
+                    { from: accounts[0], gas: 299706180 });
+            })
+            .then((_result) => {
+                assert.ok(_result);
+            })
+            .then(async () => {
+                console.log("Gas: " + (await contract.verify.sendTransaction(
+                    verfiy_params, 
+                    { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
+            })
+
+    })
 });
