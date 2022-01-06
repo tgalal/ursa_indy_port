@@ -445,8 +445,9 @@ contract("Verify", (accounts) => {
             aggregated_proof_c_hash: decStrToBnHex(proof.aggregated_proof.c_hash),
 
             aggregated_proof_c_list: proof.aggregated_proof.c_list,
-            primary_proofs: proof.proofs.map((p) => { 
+        };
 
+        const primary_proofs = proof.proofs.map((p) => { 
                 const m_keys = Object.keys(p.primary_proof.eq_proof.m);
                 const m_values = m_keys.map(e => decStrToBnHex(p.primary_proof.eq_proof.m[e]));
 
@@ -479,23 +480,42 @@ contract("Verify", (accounts) => {
                     tne_params: [],
                     verify_ne_predicate_params: []
                 }                
-            }),
-        };
+            })
 
         let contract;
         return Verify.deployed()
             .then((_contract) => {
                 contract = _contract;
-                return contract.verify(
+                return contract.full_verify(
                     verfiy_params, 
+                    primary_proofs,
                     { from: accounts[0], gas: 299706180 });
             })
             .then((_result) => {
                 assert.ok(_result);
             })
             .then(async () => {
-                console.log("Gas: " + (await contract.verify.sendTransaction(
+                console.log("Full Gas: " + (await contract.full_verify.sendTransaction(
                     verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
+
+                return contract.prepare_verify(
+                    verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 });
+            })
+            .then(async (_prep) => {
+                assert.ok(await contract.verify(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
+                    { from: accounts[0], gas: 299706180 }));
+                
+                console.log("Prepared Gas: " + (await contract.verify.sendTransaction(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
                     { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
             })
     })
@@ -525,8 +545,10 @@ contract("Verify", (accounts) => {
             nonce: [0xe0, 0xcc, 0xa9, 0x08, 0x49, 0xa2, 0xcf, 0xc3, 0x46, 0xc2],
             aggregated_proof_c_hash: decStrToBnHex(proof.aggregated_proof.c_hash),
 
-            aggregated_proof_c_list: proof.aggregated_proof.c_list,
-            primary_proofs: proof.proofs.map((p) => { 
+            aggregated_proof_c_list: proof.aggregated_proof.c_list
+        };
+
+        const primary_proofs = proof.proofs.map((p) => { 
 
                 const m_keys = Object.keys(p.primary_proof.eq_proof.m);
                 const m_values = m_keys.map(e => decStrToBnHex(p.primary_proof.eq_proof.m[e]));
@@ -653,23 +675,42 @@ contract("Verify", (accounts) => {
                         }
                     }),
                 }                
-            }),
-        };
+            });
 
         let contract;
         return Verify.deployed()
             .then((_contract) => {
                 contract = _contract;
-                return contract.verify(
+                return contract.full_verify(
                     verfiy_params, 
+                    primary_proofs,
                     { from: accounts[0], gas: 299706180 });
             })
             .then((_result) => {
                 assert.ok(_result);
             })
             .then(async () => {
-                console.log("Gas: " + (await contract.verify.sendTransaction(
+                console.log("Full Gas: " + (await contract.full_verify.sendTransaction(
                     verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
+
+                return contract.prepare_verify(
+                    verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 });
+            })
+            .then(async (_prep) => {
+                assert.ok(await contract.verify(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
+                    { from: accounts[0], gas: 299706180 }));
+
+                console.log("Prepared Gas: " + (await contract.verify.sendTransaction(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
                     { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
             })
     })
@@ -695,12 +736,7 @@ contract("Verify", (accounts) => {
         const r_keys = Object.keys(pk.r);
         const r_values = r_keys.map(e => decStrToBnHex(pk.r[e]));
 
-        const verfiy_params = {
-            nonce: [0xa7, 0xfd, 0xc1, 0x66, 0xa8, 0xdb, 0xa0, 0x6a, 0x7f, 0x52],
-            aggregated_proof_c_hash: decStrToBnHex(proof.aggregated_proof.c_hash),
-
-            aggregated_proof_c_list: proof.aggregated_proof.c_list,
-            primary_proofs: proof.proofs.map((p) => { 
+        const primary_proofs = proof.proofs.map((p) => { 
 
                 const m_keys = Object.keys(p.primary_proof.eq_proof.m);
                 const m_values = m_keys.map(e => decStrToBnHex(p.primary_proof.eq_proof.m[e]));
@@ -827,23 +863,49 @@ contract("Verify", (accounts) => {
                         }
                     }),
                 }                
-            }),
+            });
+
+        const verfiy_params = {
+            nonce: [0xa7, 0xfd, 0xc1, 0x66, 0xa8, 0xdb, 0xa0, 0x6a, 0x7f, 0x52],
+            aggregated_proof_c_hash: decStrToBnHex(proof.aggregated_proof.c_hash),
+
+            aggregated_proof_c_list: proof.aggregated_proof.c_list,
         };
 
         let contract;
         return Verify.deployed()
             .then((_contract) => {
                 contract = _contract;
-                return contract.verify(
+                return contract.full_verify(
                     verfiy_params, 
+                    primary_proofs,
                     { from: accounts[0], gas: 299706180 });
             })
             .then((_result) => {
                 assert.ok(_result);
             })
             .then(async () => {
-                console.log("Gas: " + (await contract.verify.sendTransaction(
+                console.log("Full Gas: " + (await contract.full_verify.sendTransaction(
                     verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
+
+                return contract.prepare_verify(
+                    verfiy_params, 
+                    primary_proofs,
+                    { from: accounts[0], gas: 299706180 });
+            })
+            .then(async (_prep) => {
+                assert.ok(await contract.verify(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
+                    { from: accounts[0], gas: 299706180 }));
+
+                console.log("Prepared Gas: " + (await contract.verify.sendTransaction(
+                    verfiy_params, 
+                    _prep._tau_digest,
+                    _prep._tau_digest_i,
                     { from: accounts[0], gas: 299706180 })).receipt.gasUsed);
             })
     })

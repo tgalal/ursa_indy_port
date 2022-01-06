@@ -71,8 +71,6 @@ contract Verify {
  	}
 
  	struct Verfiy_param {
- 		Verify_primary_param[] primary_proofs;
- 		
  		bytes aggregated_proof_c_hash;
  		bytes[] aggregated_proof_c_list;
 
@@ -581,22 +579,47 @@ contract Verify {
  	}
 
  	function verify(
- 		Verfiy_param memory _verify_param
+ 		Verfiy_param memory _verify_param,
+ 		bytes memory _tau_digest, // caution: requires full tau digest length (for saving duplicates/memory/gas) => only use prepare_verify
+ 		uint256 _tau_digest_i // pointer to last free tau pos
  	) view public returns(bool) {
  		require(_verify_param.nonce.length == 10, "nonce.length != 10");
 
- 		uint256 tau_length = _verify_param.primary_proofs.length;
- 		for(uint8 i = 0; i < _verify_param.primary_proofs.length; i++)
- 			tau_length += 6 * _verify_param.primary_proofs[i].tne_params.length;
+  		for(uint256 i = 0; i < _verify_param.aggregated_proof_c_list.length; i++) {
+  	  		for(uint256 j = 0; j < _verify_param.aggregated_proof_c_list[i].length; j++)
+  		  		_tau_digest[_tau_digest_i++] = _verify_param.aggregated_proof_c_list[i][j];
+  		}
+
+  		for(uint256 i = 0; i < _verify_param.nonce.length; i++) 
+  			_tau_digest[_tau_digest_i++] = _verify_param.nonce[i];
+
+  		bytes memory c_hash_arr = _verify_param.aggregated_proof_c_hash;
+  		bytes32 c_hash;
+  		assembly {
+  			c_hash := mload(add(c_hash_arr, 32))
+  		}
+
+  		require(_tau_digest_i == _tau_digest.length, "Invalid _tau_digest_i");
+
+  		return sha256(_tau_digest) == c_hash;
+ 	}
+
+ 	function prepare_verify(
+ 		Verfiy_param memory _verify_param, 
+ 		Verify_primary_param[] memory _primary_proofs
+ 	) public view returns (bytes memory _tau_digest, uint256 _tau_digest_i) {
+ 		uint256 tau_length = _primary_proofs.length;
+ 		for(uint8 i = 0; i < _primary_proofs.length; i++)
+ 			tau_length += 6 * _primary_proofs[i].tne_params.length;
 
  		BigNumber.instance[] memory tau_list = new BigNumber.instance[](tau_length);
 
  		uint256 tau_i = 0;
- 		for(uint8 i = 0; i < _verify_param.primary_proofs.length; i++) {
+ 		for(uint8 i = 0; i < _primary_proofs.length; i++) {
  			// Note: here non rev proof check
 
  			BigNumber.instance[] memory verify_primary_proof = verify_primary_proof(
- 				_verify_param.primary_proofs[i],
+ 				_primary_proofs[i],
  				_verify_param.aggregated_proof_c_hash
  			);
 
@@ -612,9 +635,8 @@ contract Verify {
   			final_digest_length += _verify_param.aggregated_proof_c_list[i].length;
   		}
 
-  		bytes memory final_digest = new bytes(final_digest_length);// - (31 * (1 + _verify_param.aggregated_proof_c_list.length)));
+  		_tau_digest = new bytes(final_digest_length);// - (31 * (1 + _verify_param.aggregated_proof_c_list.length)));
 
-  		uint256 final_digest_i = 0; 
   		for(uint256 i = 0; i < tau_i; i++) {
   			BigNumber.instance memory tau = tau_list[i];
 
@@ -623,30 +645,18 @@ contract Verify {
   			uint256 skip = bytes_len - bn_len;
 
   			for(uint256 j = skip; j < tau.val.length; j++) {
-				final_digest[final_digest_i++] = tau.val[j];
+				_tau_digest[_tau_digest_i++] = tau.val[j];
   			}
   		}
 
-  		for(uint256 i = 0; i < _verify_param.aggregated_proof_c_list.length; i++) {
-  	  		for(uint256 j = 0; j < _verify_param.aggregated_proof_c_list[i].length; j++)
-  		  		final_digest[final_digest_i++] = _verify_param.aggregated_proof_c_list[i][j];
-  		}
-
-  		for(uint256 i = 0; i < _verify_param.nonce.length; i++) 
-  			final_digest[final_digest_i++] = _verify_param.nonce[i];
-
-  		bytes memory c_hash_arr = _verify_param.aggregated_proof_c_hash;
-  		bytes32 c_hash;
-  		assembly {
-  			c_hash := mload(add(c_hash_arr, 32))
-  		}
-
-  		bytes[] memory tau_bytes = new bytes[](tau_list.length);
-  		for(uint256 i = 0; i < tau_bytes.length; i++) {
-  			tau_bytes[i] = tau_list[i].val;
-  		}
-
-  		return sha256(final_digest) == c_hash;
  	}
 
+ 	function full_verify(
+ 		Verfiy_param memory _verify_param,
+ 		Verify_primary_param[] memory _primary_proofs
+ 	) view public returns(bool) {
+ 		(bytes memory tau_digest, uint256 tau_digest_i) = prepare_verify(_verify_param, _primary_proofs);
+
+ 		return verify(_verify_param, tau_digest, tau_digest_i);
+ 	}
 }
