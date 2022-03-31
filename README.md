@@ -1,8 +1,9 @@
 # Indy port
 
-Chunks of code ported from [Hyperledger Ursa](https://github.com/hyperledger/ursa).
+Chunks of code ported from [Hyperledger
+Ursa](https://github.com/hyperledger/ursa) into python and solidity.
 
-## Run tests
+## Run python tests
 
 - Data used in tests are found under [data/tests](data/tests/)
 - Test vectors are from [Ursa](https://github.com/hyperledger/ursa)
